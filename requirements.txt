@@ -4,4 +4,3 @@ Flask-SocketIO==5.5.1
 yt-dlp==2025.2.19
 gunicorn==23.0.0
 requests==2.32.3
-secrets  # Standard Library (No need to install)
