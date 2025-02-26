@@ -5,10 +5,12 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from urllib.parse import urlparse
 
+# ✅ Flask App Setup
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# ✅ Download Folder Setup (Koyeb पर Compatible)
 DOWNLOAD_FOLDER = "downloads"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -63,7 +65,7 @@ def download_instagram_video(url):
 def index():
     return render_template("index.html")
 
-# ✅ Download API (अब Metadata सही से Pass होगा)
+# ✅ Download API
 @app.route('/download', methods=['POST'])
 def download():
     data = request.json
@@ -86,7 +88,6 @@ def download():
 
     socketio.emit("download_status", {"status": "✅ Download complete!"})
 
-    # ✅ अब Title, Description, और Thumbnail को URL में Pass करेंगे
     return jsonify({
         'success': True,
         'redirect_url': url_for('download_page', 
@@ -97,14 +98,13 @@ def download():
         'file_url': f"/downloaded/{os.path.basename(video_data['filename'])}"
     })
 
-# ✅ Download Page (अब Parameters URL से Fetch होंगे)
+# ✅ Download Page
 @app.route('/download-page/<filename>')
 def download_page(filename):
     file_path = os.path.join(DOWNLOAD_FOLDER, filename)
     if not os.path.exists(file_path):
         return "❌ File Not Found", 404
 
-    # ✅ अब URL से Parameters को सही से Fetch करेंगे
     title = request.args.get("title", "Unknown Video")
     description = request.args.get("description", "No Description")
     thumbnail = request.args.get("thumbnail", "")
@@ -116,11 +116,11 @@ def download_page(filename):
                            description=description,
                            thumbnail=thumbnail)
 
-# ✅ Serve Downloaded Files
+# ✅ Serve Downloaded Files (Static Access for Koyeb)
 @app.route('/downloaded/<filename>')
 def serve_file(filename):
     return send_file(f"{DOWNLOAD_FOLDER}/{filename}", as_attachment=True)
 
+# ✅ Main Execution (Koyeb Compatible)
 if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000)
-        
+    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
