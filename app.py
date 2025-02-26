@@ -55,7 +55,10 @@ def download_instagram_video(url):
             "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",  # Template for downloaded files
             "format": "bestvideo+bestaudio/best",  # Best video and audio format
             "quiet": False,  # Set to False to show logs
-            "progress_hooks": [progress_hook]  # Hook to track progress
+            "progress_hooks": [progress_hook],  # Hook to track progress
+            "cookiefile": "cookies.txt",  # Add this to use cookies file (optional)
+            "username": "your_instagram_username",  # Use your credentials for login (optional)
+            "password": "your_instagram_password"   # Use your credentials for login (optional)
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
