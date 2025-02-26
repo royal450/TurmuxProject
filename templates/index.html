@@ -556,69 +556,74 @@ body {
 
 
 
-
 <script>
-  document.addEventListener("DOMContentLoaded", () => {
+    
+document.addEventListener("DOMContentLoaded", () => {
     const inputField = document.querySelector(".url-input"),
-      pasteBtn = document.querySelector(".paste-btn"),
-      downloadBtn = document.querySelector(".download-btn"),
-      progressContainer = document.querySelector(".progress-container"),
-      progressBar = document.querySelector(".progress-bar");
-    
+        pasteBtn = document.querySelector(".paste-btn"),
+        downloadBtn = document.querySelector(".download-btn"),
+        progressContainer = document.querySelector(".progress-container"),
+        progressBar = document.querySelector(".progress-bar");
+
+    // ✅ Paste Button Click - Clipboard से URL लाना
     pasteBtn.addEventListener("click", async () => {
-      try {
-        inputField.value = await navigator.clipboard.readText();
-      } catch (err) {
-        console.error("Clipboard read failed: ", err);
-      }
-    });
-    
-    const validateURL = (url) => /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|stories|tv)\/[\w-]+/.test(url);
-    
-    downloadBtn.addEventListener("click", async () => {
-      const url = inputField.value.trim();
-      
-      if (!validateURL(url)) {
-        return Swal.fire({ title: "Error", text: "⚠️ Invalid Instagram URL!", icon: "error" });
-      }
-      
-      downloadBtn.disabled = true;
-      downloadBtn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Fetching...";
-      
-      progressContainer.style.display = "block";
-      progressBar.style.width = "10%";
-      
-      try {
-        const response = await fetch("http://127.0.0.1:5000/download", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url })
-        });
-        
-        progressBar.style.width = "50%";
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          progressBar.style.width = "100%";
-          window.location.href = data.redirect_url; // ✅ Redirect to download page
-        } else {
-          Swal.fire({ title: "Error", text: data.message, icon: "error" });
+        try {
+            inputField.value = await navigator.clipboard.readText();
+        } catch (err) {
+            console.error("❌ Clipboard read failed: ", err);
         }
-      } catch (error) {
-        Swal.fire({ title: "Error", text: "Something went wrong!", icon: "error" });
-      } finally {
-        downloadBtn.disabled = false;
-        downloadBtn.innerHTML = "Download <i class='fas fa-download'></i>";
-        progressContainer.style.display = "none";
-      }
     });
-  });
+
+    // ✅ Instagram URL Validation Function
+    const validateURL = (url) => /(?:https?:\/\/)?(?:www\.)?instagram\.com\/(?:p|reel|stories|tv)\/[\w-]+/.test(url);
+
+    // ✅ Download Button Click Event
+    downloadBtn.addEventListener("click", async () => {
+        const url = inputField.value.trim();
+
+        if (!validateURL(url)) {
+            return Swal.fire({ title: "Error", text: "⚠️ Invalid Instagram URL!", icon: "error" });
+        }
+
+        // 🛠️ Disable Button & Show Loader
+        downloadBtn.disabled = true;
+        downloadBtn.innerHTML = "<i class='fas fa-spinner fa-spin'></i> Fetching...";
+
+        // ✅ Progress Bar Show करें
+        progressContainer.style.display = "block";
+        progressBar.style.width = "10%";
+
+        try {
+            // ✅ Backend URL को Dynamic रखें (Koyeb के लिए सही)
+            const response = await fetch("/download", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url })
+            });
+
+            progressBar.style.width = "50%";
+
+            const data = await response.json();
+
+            if (data.success) {
+                progressBar.style.width = "100%";
+                window.location.href = data.redirect_url; // ✅ Auto-Redirect to Download Page
+            } else {
+                Swal.fire({ title: "Error", text: data.message || "Download failed!", icon: "error" });
+            }
+        } catch (error) {
+            Swal.fire({ title: "Error", text: "❌ Server Error! Try again.", icon: "error" });
+        } finally {
+            // ✅ Restore Button & Hide Progress Bar
+            downloadBtn.disabled = false;
+            downloadBtn.innerHTML = "Download <i class='fas fa-download'></i>";
+            progressContainer.style.display = "none";
+        }
+    });
+});
+
+
 </script>
-
-
-
-
 
 
 
