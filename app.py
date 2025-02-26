@@ -1,8 +1,6 @@
 import os
-import secrets
 import yt_dlp
-from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, url_for
 from flask_cors import CORS
 from flask_socketio import SocketIO
 from urllib.parse import urlparse
@@ -11,32 +9,10 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Configuration
 DOWNLOAD_FOLDER = "downloads"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-# Master API Key
-MASTER_API_KEY = "ROYALDEV_SUPER_KEY"
-
-# API Key Database
-api_keys = {}
-
-# Generate API Key
-def generate_api_key(user_id, months=1):
-    api_key = secrets.token_hex(16)  # 32-char hex API Key
-    expiry_date = datetime.now() + timedelta(days=months * 30)
-    api_keys[api_key] = {"user_id": user_id, "expiry": expiry_date}
-    return api_key
-
-# Validate API Key
-def validate_api_key(api_key):
-    if api_key == MASTER_API_KEY:
-        return True  # Master API Key is always valid
-    if api_key in api_keys:
-        return datetime.now() < api_keys[api_key]["expiry"]  # Check expiry
-    return False
-
-# Validate Instagram URL
+# ✅ Validate Instagram URL
 def validate_instagram_url(url):
     try:
         parsed_url = urlparse(url)
@@ -55,86 +31,96 @@ def validate_instagram_url(url):
     except Exception:
         return None
 
-# Download Instagram Video
+# ✅ Download Instagram Video
 def download_instagram_video(url):
+    def progress_hook(d):
+        if d["status"] == "downloading":
+            progress = d.get("_percent_str", "0%")
+            socketio.emit("download_progress", {"progress": progress})
+
     try:
         ydl_opts = {
             "outtmpl": f"{DOWNLOAD_FOLDER}/%(title)s.%(ext)s",
             "format": "bestvideo+bestaudio/best",
-            "quiet": True  # Disable logs
+            "quiet": False,
+            "progress_hooks": [progress_hook]
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
             return {
                 "title": info.get("title", "Unknown Video"),
+                "description": info.get("description", "No Description"),
+                "thumbnail": info.get("thumbnail"),
                 "filename": filename
             }
     except Exception as e:
-        print(f"Error downloading video: {e}")
+        print(f"❌ Error downloading video: {e}")
         return None
 
-# Home Page
+# ✅ Home Page
 @app.route('/')
 def index():
     return render_template("index.html")
 
-# Generate API Key Page
-@app.route('/generate_api', methods=['GET', 'POST'])
-def generate_api_page():
-    if request.method == 'POST':
-        user_id = request.form.get("user_id")
-        months = int(request.form.get("months", 1))  # Default 1 month
-        if not user_id:
-            return jsonify({"success": False, "message": "User ID required!"}), 400
-        
-        api_key = generate_api_key(user_id, months)
-        return jsonify({"api_key": api_key, "expiry": api_keys[api_key]["expiry"].strftime("%Y-%m-%d")})
-    return render_template("generate_api.html")
-
-# API Key Page
-@app.route('/api_key')
-def api_key_page():
-    return render_template("api_key.html")
-
-# Download Page
-@app.route('/download_page')
-def download_page():
-    return render_template("download.html")
-
-# Download API (API Key Required)
+# ✅ Download API (अब Metadata सही से Pass होगा)
 @app.route('/download', methods=['POST'])
 def download():
-    api_key = request.headers.get("X-API-KEY")  # API Key Header
-
-    if not validate_api_key(api_key):
-        return jsonify({"success": False, "message": "Invalid or Expired API Key!"}), 401
-
     data = request.json
     url = data.get("url")
 
     if not url:
-        return jsonify({'success': False, 'message': 'URL is required'}), 400
+        return jsonify({'success': False, 'message': '⚠️ URL is required'}), 400
+
+    content_type = validate_instagram_url(url)
+    if not content_type:
+        return jsonify({'success': False, 'message': '❌ Invalid Instagram URL'}), 400
+
+    socketio.emit("download_status", {"status": "Downloading started..."})
 
     video_data = download_instagram_video(url)
     
     if not video_data:
-        return jsonify({'success': False, 'message': 'Download failed'}), 500
+        socketio.emit("download_status", {"status": "Download failed!"})
+        return jsonify({'success': False, 'message': '❌ Download failed'}), 500
 
+    socketio.emit("download_status", {"status": "✅ Download complete!"})
+
+    # ✅ अब Title, Description, और Thumbnail को URL में Pass करेंगे
     return jsonify({
         'success': True,
-        'file_url': f"{request.host_url}downloaded/{os.path.basename(video_data['filename'])}"
+        'redirect_url': url_for('download_page', 
+                                filename=os.path.basename(video_data["filename"]),
+                                title=video_data["title"],
+                                description=video_data["description"],
+                                thumbnail=video_data["thumbnail"]),
+        'file_url': f"/downloaded/{os.path.basename(video_data['filename'])}"
     })
 
-# Serve Downloaded Files
+# ✅ Download Page (अब Parameters URL से Fetch होंगे)
+@app.route('/download-page/<filename>')
+def download_page(filename):
+    file_path = os.path.join(DOWNLOAD_FOLDER, filename)
+    if not os.path.exists(file_path):
+        return "❌ File Not Found", 404
+
+    # ✅ अब URL से Parameters को सही से Fetch करेंगे
+    title = request.args.get("title", "Unknown Video")
+    description = request.args.get("description", "No Description")
+    thumbnail = request.args.get("thumbnail", "")
+
+    return render_template("download.html", 
+                           filename=filename, 
+                           file_url=f"/downloaded/{filename}", 
+                           title=title, 
+                           description=description,
+                           thumbnail=thumbnail)
+
+# ✅ Serve Downloaded Files
 @app.route('/downloaded/<filename>')
 def serve_file(filename):
-    filepath = os.path.join(DOWNLOAD_FOLDER, filename)
-    if not os.path.exists(filepath):
-        return jsonify({"success": False, "message": "File not found"}), 404
-    return send_file(filepath, as_attachment=True)
+    return send_file(f"{DOWNLOAD_FOLDER}/{filename}", as_attachment=True)
 
-# Run the App
 if __name__ == '__main__':
-    socketio.run(app, debug=False, port=5000)
-    
+    socketio.run(app, debug=True, port=5000)
+        
