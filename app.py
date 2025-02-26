@@ -105,6 +105,7 @@ def download():
 
     socketio.emit("download_status", {"status": "✅ डाउनलोड पूरा!"})  # डाउनलोड पूरा होने की स्थिति
 
+    # सही रीडायरेक्ट URL
     return jsonify({
         'success': True,
         'redirect_url': url_for('download_page', 
