@@ -5,8 +5,8 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from urllib.parse import urlparse
 
-# ✅ Flask App Setup
-app = Flask(__name__, template_folder="templates", static_folder="static")
+# ✅ Flask App Setup (Static Folder Disabled)
+app = Flask(__name__, template_folder="templates", static_folder=None)  # Disable static folder
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
