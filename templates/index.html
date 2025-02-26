@@ -1,4 +1,3 @@
-
 <!DOCTYPE html><html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -590,7 +589,7 @@ body {
       progressBar.style.width = "10%";
       
       try {
-        const response = await fetch("https://mushy-elisabeth-boostmedia-e8bff6c1.koyeb.app/download", {
+        const response = await fetch("http://127.0.0.1:5000/download", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url })
@@ -624,5 +623,5 @@ body {
 
 
 </body>
-  </html>
-  
+    </html>
+    
