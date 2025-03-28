@@ -12,7 +12,7 @@ load_dotenv()
 
 app = FastAPI(title="YouTube Channel Data API", version="1.0.0", description="Fetch YouTube channel data using FastAPI")
 
-# Enable CORS for all origins
+# CORS: Allow all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -21,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get API Key from .env
+# Secure API Key from .env file
 API_KEY = os.getenv("API_KEY")
 if not API_KEY:
     raise RuntimeError("API Key not found! Set it in the .env file.")
@@ -38,12 +38,12 @@ if not os.path.exists(RATE_LIMIT_FILE):
 with open(RATE_LIMIT_FILE, "r") as f:
     rate_limit_data = json.load(f)
 
-# Save Rate Limit Data
+# Function to Save Data to JSON
 def save_rate_limit():
     with open(RATE_LIMIT_FILE, "w") as f:
         json.dump(rate_limit_data, f)
 
-# Rate Limiter
+# Function to Check Rate Limit
 def rate_limiter(request: Request):
     ip = request.client.host
     current_time = time.time()
@@ -64,7 +64,7 @@ def rate_limiter(request: Request):
         rate_limit_data[ip] = [1, current_time]
         save_rate_limit()
 
-# Root Route
+# Root Route: Check API Status
 @app.get("/")
 def home():
     return {"message": "YouTube Channel Data API is Running!", "status": "OK"}
@@ -140,3 +140,8 @@ async def fetch_channel_data(request: Request, data: dict = Depends(rate_limiter
     }
 
     return result
+
+# Run app with uvicorn (for local testing)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
