@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 import re
 import time
@@ -10,16 +10,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-app = FastAPI(title="YouTube Channel Data API", version="1.0.0", description="Fetch YouTube channel data using FastAPI")
-
-# CORS: Allow all origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all domains
 
 # Secure API Key from .env file
 API_KEY = os.getenv("API_KEY")
@@ -44,8 +36,7 @@ def save_rate_limit():
         json.dump(rate_limit_data, f)
 
 # Function to Check Rate Limit
-def rate_limiter(request: Request):
-    ip = request.client.host
+def rate_limiter(ip):
     current_time = time.time()
 
     if ip in rate_limit_data:
@@ -56,18 +47,19 @@ def rate_limiter(request: Request):
             rate_limit_data[ip] = [1, current_time]
             save_rate_limit()
         elif attempts >= 5:
-            raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again after 24 hours.")
+            return False
         else:
             rate_limit_data[ip][0] += 1
             save_rate_limit()
     else:
         rate_limit_data[ip] = [1, current_time]
         save_rate_limit()
+    return True
 
 # Root Route: Check API Status
-@app.get("/")
+@app.route("/", methods=["GET"])
 def home():
-    return {"message": "YouTube Channel Data API is Running!", "status": "OK"}
+    return jsonify({"message": "YouTube Channel Data API is Running!", "status": "OK"}), 200
 
 # Extract Channel ID from URL
 def extract_channel_id(url):
@@ -90,26 +82,30 @@ def extract_channel_id(url):
     return None
 
 # Fetch Channel Data API
-@app.post("/fetch_channel_data")
-async def fetch_channel_data(request: Request, data: dict = Depends(rate_limiter)):
-    body = await request.json()
-    
-    # Validate URL
+@app.route("/fetch_channel_data", methods=["POST"])
+def fetch_channel_data():
+    ip = request.remote_addr
+    if not rate_limiter(ip):
+        return jsonify({"error": "Rate limit exceeded. Try again after 24 hours."}), 429
+
+    body = request.json
     channel_url = body.get("channel_url")
+
+    # Validate URL
     if not channel_url or not re.match(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.*$", channel_url):
-        raise HTTPException(status_code=400, detail="Invalid URL format")
+        return jsonify({"error": "Invalid URL format"}), 400
 
     # Extract Channel ID
     channel_id = extract_channel_id(channel_url)
     if not channel_id:
-        raise HTTPException(status_code=400, detail="Invalid channel URL")
+        return jsonify({"error": "Invalid channel URL"}), 400
 
     # Fetch Data from YouTube API
     url = f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&id={channel_id}&key={API_KEY}"
     response = requests.get(url).json()
 
     if not response.get("items"):
-        raise HTTPException(status_code=404, detail="Channel not found")
+        return jsonify({"error": "Channel not found"}), 404
 
     channel_data = response["items"][0]
     snippet = channel_data["snippet"]
@@ -139,9 +135,8 @@ async def fetch_channel_data(request: Request, data: dict = Depends(rate_limiter
         "full_json_response": channel_data
     }
 
-    return result
+    return jsonify(result), 200
 
-# Run app with uvicorn (for local testing)
+# Run app locally
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
