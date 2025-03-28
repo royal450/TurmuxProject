@@ -12,7 +12,7 @@ load_dotenv()
 
 app = FastAPI(title="YouTube Channel Data API", version="1.0.0", description="Fetch YouTube channel data using FastAPI")
 
-# CORS: Allow all origins
+# Enable CORS for all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
@@ -21,7 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Secure API Key from .env file
+# Get API Key from .env
 API_KEY = os.getenv("API_KEY")
 if not API_KEY:
     raise RuntimeError("API Key not found! Set it in the .env file.")
@@ -38,12 +38,12 @@ if not os.path.exists(RATE_LIMIT_FILE):
 with open(RATE_LIMIT_FILE, "r") as f:
     rate_limit_data = json.load(f)
 
-# Function to Save Data to JSON
+# Save Rate Limit Data
 def save_rate_limit():
     with open(RATE_LIMIT_FILE, "w") as f:
         json.dump(rate_limit_data, f)
 
-# Function to Check Rate Limit
+# Rate Limiter
 def rate_limiter(request: Request):
     ip = request.client.host
     current_time = time.time()
@@ -64,7 +64,7 @@ def rate_limiter(request: Request):
         rate_limit_data[ip] = [1, current_time]
         save_rate_limit()
 
-# Root Route: Check API Status
+# Root Route
 @app.get("/")
 def home():
     return {"message": "YouTube Channel Data API is Running!", "status": "OK"}
