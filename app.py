@@ -10,12 +10,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-app = FastAPI()
+app = FastAPI(title="YouTube Channel Data API", version="1.0.0", description="Fetch YouTube channel data using FastAPI")
 
-# CORS: Fully Open for All Origins
+# CORS: Allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Now API is open for all domains
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,18 +51,23 @@ def rate_limiter(request: Request):
     if ip in rate_limit_data:
         attempts, first_attempt_time = rate_limit_data[ip]
 
-        # If 24 hours have passed, reset attempts
+        # Reset after 24 hours
         if current_time - first_attempt_time > 86400:
             rate_limit_data[ip] = [1, current_time]
             save_rate_limit()
         elif attempts >= 5:
-            raise HTTPException(status_code=429, detail="Your limit has expired. Please try after 24 hours.")
+            raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again after 24 hours.")
         else:
             rate_limit_data[ip][0] += 1
             save_rate_limit()
     else:
         rate_limit_data[ip] = [1, current_time]
         save_rate_limit()
+
+# Root Route: Check API Status
+@app.get("/")
+def home():
+    return {"message": "YouTube Channel Data API is Running!", "status": "OK"}
 
 # Extract Channel ID from URL
 def extract_channel_id(url):
@@ -89,15 +94,17 @@ def extract_channel_id(url):
 async def fetch_channel_data(request: Request, data: dict = Depends(rate_limiter)):
     body = await request.json()
     
-    # Input Validation: Validate the URL format
+    # Validate URL
     channel_url = body.get("channel_url")
     if not channel_url or not re.match(r"^(https?://)?(www\.)?(youtube\.com|youtu\.be)/.*$", channel_url):
         raise HTTPException(status_code=400, detail="Invalid URL format")
 
+    # Extract Channel ID
     channel_id = extract_channel_id(channel_url)
     if not channel_id:
         raise HTTPException(status_code=400, detail="Invalid channel URL")
 
+    # Fetch Data from YouTube API
     url = f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&id={channel_id}&key={API_KEY}"
     response = requests.get(url).json()
 
@@ -109,6 +116,7 @@ async def fetch_channel_data(request: Request, data: dict = Depends(rate_limiter
     stats = channel_data["statistics"]
     branding = channel_data.get("brandingSettings", {}).get("image", {})
 
+    # Get Thumbnails & Banner URL
     thumbnail_url = snippet["thumbnails"].get("maxres", {}).get("url") or \
                     snippet["thumbnails"].get("high", {}).get("url") or \
                     snippet["thumbnails"].get("medium", {}).get("url") or \
@@ -132,8 +140,3 @@ async def fetch_channel_data(request: Request, data: dict = Depends(rate_limiter
     }
 
     return result
-
-# Run Server (For Local Testing)
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
