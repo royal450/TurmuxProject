@@ -5,6 +5,7 @@ import re
 import time
 import json
 import os
+import threading
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -136,6 +137,24 @@ def fetch_channel_data():
     }
 
     return jsonify(result), 200
+
+# Function to Keep Server Alive with Smart Pings
+def keep_alive():
+    while True:
+        try:
+            response = requests.get("https://royaldevgrowth.onrender.com")
+            if response.status_code == 200:
+                print("[PING] Server is active")
+            else:
+                print(f"[PING] Server responded with status: {response.status_code}")
+        except Exception as e:
+            print(f"[PING ERROR] {e}")
+        
+        time.sleep(40)  # Wait 40 seconds before next ping
+
+# Start keep_alive in a background thread
+ping_thread = threading.Thread(target=keep_alive, daemon=True)
+ping_thread.start()
 
 # Run app locally
 if __name__ == "__main__":
